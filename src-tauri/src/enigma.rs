@@ -1,5 +1,4 @@
 /// Módulo que implementa a lógica da máquina Enigma M3 (usada pelo exército alemão).
-/// Focado em ser didático, expondo os passos internos da criptografia.
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
