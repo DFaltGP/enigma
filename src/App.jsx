@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Box, Container, Flex, Heading, VStack } from '@chakra-ui/react';
 import { invoke } from '@tauri-apps/api/core';
 import Notepad from './components/Notepad';
@@ -19,40 +19,53 @@ export default function App() {
     plugboard_pairs: '',
   });
 
-  const handleKeyPress = async (key) => {
-    if (key === ' ') {
-      const newOriginalText = originalText + ' ';
-      setOriginalText(newOriginalText);
-      setEncryptedText((prev) => prev + ' ');
-      return;
-    };
+const handleKeyPress = async (key) => {
+  if (key === ' ') {
+    setOriginalText(prev => prev + ' ');
+    setEncryptedText(prev => prev + ' ');
+    return;
+  }
 
-    if (!/[A-Za-z]/.test(key)) {
-      return;
-    };
+  if (!/^[A-Za-z]$/.test(key)) return;
 
-    const newOriginalText = originalText + key.toLowerCase();
-    setOriginalText(newOriginalText);
+  setOriginalText(prev => {
+    const updated = prev + key.toLowerCase();
 
-    try {
-      const config = getDefaultConfig();
+    processEncryption(updated);
 
-      const encrypted = await invoke('enigma_process_string', {
-        config,
-        text: newOriginalText.toUpperCase(),
-      });
+    return updated;
+  });
+};
 
-      setEncryptedText(encrypted);
-    } catch (error) {
-      console.error('Erro ao criptografar:', error);
-      setEncryptedText((prev) => prev + key.toUpperCase());
-    };
-  };
+const processEncryption = async (text) => {
+  try {
+    const encrypted = await invoke('enigma_process_string', {
+      config: getDefaultConfig(),
+      text: text.toUpperCase(),
+    });
+
+    setEncryptedText(encrypted);
+  } catch {
+    setEncryptedText(prev => prev + '?');
+  }
+};
 
   const handleClear = () => {
     setOriginalText('');
     setEncryptedText('');
   };
+
+  useEffect(() => {
+    const handlePhysicalKeyPress = (event) => {
+      handleKeyPress(event.key);
+    };
+
+    window.addEventListener('keydown', handlePhysicalKeyPress);
+
+    return () => {
+      window.removeEventListener('keydown', handlePhysicalKeyPress);
+    };
+  }, []);
 
   return (
     <Box
