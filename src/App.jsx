@@ -1,52 +1,124 @@
-import { useState } from "react";
-import reactLogo from "./assets/react.svg";
-import { invoke } from "@tauri-apps/api/core";
-import "./App.css";
+import { useState } from 'react';
+import { Box, Container, Flex, Heading, VStack } from '@chakra-ui/react';
+import { invoke } from '@tauri-apps/api/core';
+import Notepad from './components/Notepad';
+import EnigmaMachine from './components/EnigmaMachine';
+import paperTexture from './assets/old-paper.jpg';
 
-function App() {
-  const [greetMsg, setGreetMsg] = useState("");
-  const [name, setName] = useState("");
+export default function App() {
+  const [originalText, setOriginalText] = useState('');
+  const [encryptedText, setEncryptedText] = useState('');
 
-  async function greet() {
-    // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-    setGreetMsg(await invoke("greet", { name }));
-  }
+  const getDefaultConfig = () => ({
+    rotors: [
+      { name: 'I', position: 'A', ring: 'A' },    
+      { name: 'II', position: 'A', ring: 'A' },   
+      { name: 'III', position: 'A', ring: 'A' },  
+    ],
+    reflector: 'B',
+    plugboard_pairs: '',
+  });
+
+  const handleKeyPress = async (key) => {
+    if (key === ' ') {
+      const newOriginalText = originalText + ' ';
+      setOriginalText(newOriginalText);
+      setEncryptedText((prev) => prev + ' ');
+      return;
+    };
+
+    if (!/[A-Za-z]/.test(key)) {
+      return;
+    };
+
+    const newOriginalText = originalText + key.toLowerCase();
+    setOriginalText(newOriginalText);
+
+    try {
+      const config = getDefaultConfig();
+
+      const encrypted = await invoke('enigma_process_string', {
+        config,
+        text: newOriginalText.toUpperCase(),
+      });
+
+      setEncryptedText(encrypted);
+    } catch (error) {
+      console.error('Erro ao criptografar:', error);
+      setEncryptedText((prev) => prev + key.toUpperCase());
+    };
+  };
+
+  const handleClear = () => {
+    setOriginalText('');
+    setEncryptedText('');
+  };
 
   return (
-    <main className="container">
-      <h1>Welcome to Tauri + React</h1>
-
-      <div className="row">
-        <a href="https://vite.dev" target="_blank">
-          <img src="/vite.svg" className="logo vite" alt="Vite logo" />
-        </a>
-        <a href="https://tauri.app" target="_blank">
-          <img src="/tauri.svg" className="logo tauri" alt="Tauri logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <p>Click on the Tauri, Vite, and React logos to learn more.</p>
-      <p>Teste!</p>
-
-      <form
-        className="row"
-        onSubmit={(e) => {
-          e.preventDefault();
-          greet();
-        }}
-      >
-        <input
-          id="greet-input"
-          onChange={(e) => setName(e.currentTarget.value)}
-          placeholder="Enter a name..."
-        />
-        <button type="submit">Greet</button>
-      </form>
-      <p>{greetMsg}</p>
-    </main>
+    <Box
+      minHeight="100vh"
+      background="#E8DCC8"
+      padding="8"
+      position="relative"
+      overflow="hidden"
+      sx={{
+        backgroundImage: `url(${paperTexture})`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundRepeat: 'no-repeat',
+      }}
+    >
+      <Box
+        position="absolute"
+        inset="0"
+        background="rgba(232, 220, 200, 0.3)" 
+        pointerEvents="none"
+      />
+      
+      <Container maxWidth="7xl" marginX="auto" position="relative" zIndex="10">
+        <Heading
+          as="h1"
+          textAlign="center"
+          color="#3D2817"
+          marginBottom="2"
+          letterSpacing="wider"
+          fontFamily="'EB Garamond', serif"
+          fontSize="50px"
+          fontWeight="extrabold"
+        >
+          ENIGMA 
+        </Heading>
+        <Heading
+          as="h1"
+          textAlign="center"
+          color="#3D2817"
+          marginBottom="2"
+          letterSpacing="wider"
+          fontFamily="'EB Garamond', serif"
+          fontSize="25px"
+          fontWeight="extrabold"
+        >
+          CRIPTOGRAFADOR DE MENSAGENS DE TEXTO 
+        </Heading>
+        
+        <Flex
+          direction={{ base: 'column', lg: 'row' }}
+          gap="8"
+          align="stretch"
+          justify="center"
+          marginTop="6"
+        >
+          <Notepad 
+            text={originalText} 
+            onClear={handleClear}
+          />
+          <EnigmaMachine 
+            encryptedText={encryptedText}
+            onKeyPress={handleKeyPress}
+            onClear={handleClear}
+          />
+        </Flex>
+      </Container>
+    </Box>
   );
-}
-
-export default App;
+};

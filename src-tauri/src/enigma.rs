@@ -415,8 +415,8 @@ impl EnigmaMachine {
         let step_details = EncryptionStep {
             input_char: c,
             output_char,
-            positions_before_step, // Declarar essas variáveis em algum lugar acima
-            positions_after_step, // Declarar essas variáveis em algum lugar acima
+            positions_before_step: positions_before, // Declarar essas variáveis em algum lugar acima
+            positions_after_step: positions_after, // Declarar essas variáveis em algum lugar acima
             path,
         };
 
