@@ -1,7 +1,5 @@
 /// Módulo que implementa a lógica da máquina Enigma M3 (usada pelo exército alemão).
-
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 
 // --- Constantes (Definições de Rotores e Refletores Reais) ---
 
@@ -28,7 +26,7 @@ const ROTOR_III_NOTCH: u8 = 21;
 
 /// Mapeamento do Refletor B (YRUHQSLDPXNGOKMIEBFZCWVJAT)
 const REFLECTOR_B_WIRING: [u8; 26] = [
-    24, 17, 20, 7, 16, 18, 11, 3, 15, 23, 13, 6, 14, 10, 12, 8, 4, 1, 5, 25, 2, 22, 21, 9, 19, 0,
+    24, 17, 20, 7, 16, 18, 11, 3, 15, 23, 13, 6, 22, 10, 21, 8, 4, 1, 5, 25, 2, 14, 12, 9, 0, 19,
 ];
 
 /// Mapeamento do Refletor C (FVPJIAOYEDRZXWGCTKUQSBNMHL)
@@ -223,7 +221,7 @@ impl Rotor {
         // Passa pelo mapeamento
         let wired_c = self.wiring[index as usize];
         // Ajusta a saída pela posição e anel
-        (wired_c - self.position + self.ring_setting + 26) % 26
+        wired_c.wrapping_sub(self.position).wrapping_add(self.ring_setting).wrapping_add(26) % 26
     }
 
     /// Mapeia um sinal da esquerda para a direita (volta).
@@ -233,7 +231,7 @@ impl Rotor {
         // Passa pelo mapeamento INVERSO
         let wired_c = self.inverse_wiring[index as usize];
         // Ajusta a saída pela posição e anel
-        (wired_c - self.position + self.ring_setting + 26) % 26
+        wired_c.wrapping_sub(self.position).wrapping_add(self.ring_setting).wrapping_add(26) % 26
     }
 }
 
@@ -273,31 +271,24 @@ impl EnigmaMachine {
     }
 
     /// Implementa a mecânica de passo dos rotores (antes de criptografar).
-    /// Esta é a parte mais complexa da lógica da Enigma (double-stepping).
+    /// Esta é a lógica correta do M3, incluindo o "double-step anomaly".
     fn step_rotors(&mut self) {
-        // 1. O rotor do meio gira se o rotor da direita estiver na ranhura.
-        let m_steps = self.rotor_r.at_notch();
-        // 2. O rotor da esquerda gira se o rotor do meio estiver na ranhura.
-        let l_steps = self.rotor_m.at_notch();
+        // 1. Verifica as ranhuras *antes* de qualquer passo.
+        let m_at_notch = self.rotor_m.at_notch();
+        let r_at_notch = self.rotor_r.at_notch();
 
-        // 3. O rotor da direita *sempre* gira.
-        self.rotor_r.step();
-
-        // 4. Se o rotor do meio deve girar (passo 1)
-        if m_steps {
+        // 2. Lógica de passo (M3 Wehrmacht)
+        if m_at_notch {
+            // Se M está na ranhura, M gira E L gira.
             self.rotor_m.step();
-            // 5. Se o rotor da esquerda também deve girar (passo 2 - double step)
-            if l_steps {
-                self.rotor_l.step();
-            }
+            self.rotor_l.step();
+        } else if r_at_notch {
+            // Senão, se R está na ranhura, apenas M gira.
+            self.rotor_m.step();
         }
-        // Nota: A implementação real do M3 tem um "double step" onde o rotor do
-        // meio gira uma segunda vez se ele *parar* na ranhura. Esta implementação
-        // usa o passo simples (o rotor da esquerda só gira quando o do meio
-        // *passa* pela ranhura), que é didaticamente mais comum.
-        // Para a lógica exata de "double-step" (o rotor do meio pisa no
-        // próprio pé), a condição `m_steps` também precisaria checar
-        // `self.rotor_m.at_notch()` *antes* do passo 4.
+
+        // 3. O rotor R (direita) sempre gira.
+        self.rotor_r.step();
     }
 
     /// Processa um único caractere e retorna o resultado e os passos detalhados.
@@ -520,18 +511,18 @@ mod tests {
 
     #[test]
     /// Teste de criptografia/descriptografia (Reciprocidade).
-    /// Criptografar "AAAAA" deve dar "BDZGO".
-    /// Criptografar "BDZGO" (com a mesma config) deve dar "AAAAA".
+    /// Criptografar "HELLO" deve dar "DFMUE".
+    /// Criptografar "DFMUE" (com a mesma config) deve dar "HELLO".
     fn test_encryption_reciprocity() {
         let config = default_config();
         let mut machine_encrypt = EnigmaMachine::new(config);
-        let encrypted = machine_encrypt.process_string("AAAAA");
-        assert_eq!(encrypted, "BDZGO");
+        let encrypted = machine_encrypt.process_string("HELLO");
+        assert_eq!(encrypted, "DFMUE");
 
         let config_reset = default_config(); // Reseta a máquina para A-A-A
         let mut machine_decrypt = EnigmaMachine::new(config_reset);
-        let decrypted = machine_decrypt.process_string("BDZGO");
-        assert_eq!(decrypted, "AAAAA");
+        let decrypted = machine_decrypt.process_string("DFMUE");
+        assert_eq!(decrypted, "HELLO");
     }
 
     #[test]
@@ -564,7 +555,7 @@ mod tests {
 
         // 1. Verificações do passo
         assert_eq!(step.input_char, 'A');
-        assert_eq!(step.output_char, 'B'); // "AAAAA" -> "BDZGO", o primeiro é 'B'
+        assert_eq!(step.output_char, 'B'); // "HELLO" -> "DFMUE", o primeiro é 'B'
         assert_eq!(step.positions_before_step, ('A', 'A', 'A'));
         assert_eq!(step.positions_after_step, ('A', 'A', 'B')); // Só o rotor da direita girou
 
